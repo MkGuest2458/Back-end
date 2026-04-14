@@ -1,0 +1,64 @@
+from flask import Flask, request, jsonify
+import sqlite3
+
+app = Flask(__name__)
+
+# Função para conectar ao banco
+def get_db_connection():
+    conn = sqlite3.connect('usuarios.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Criar tabela de usuários (executar uma vez)
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# Rota para cadastrar usuário
+@app.route('/usuarios', methods=['POST'])
+def cadastrar_usuario():
+    dados = request.get_json()
+    nome = dados.get('nome')
+    email = dados.get('email')
+
+    conn = get_db_connection()
+    conn.execute('INSERT INTO usuarios (nome, email) VALUES (?, ?)', (nome, email))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"mensagem": "Usuário cadastrado com sucesso!"}), 201
+
+# Rota para listar todos os usuários
+@app.route('/usuarios', methods=['GET'])
+def listar_usuarios():
+    conn = get_db_connection()
+    usuarios = conn.execute('SELECT * FROM usuarios').fetchall()
+    conn.close()
+
+    lista = [{"id": u["id"], "nome": u["nome"], "email": u["email"]} for u in usuarios]
+    return jsonify(lista)
+
+# Rota para consultar usuário por ID
+@app.route('/usuarios/<int:id>', methods=['GET'])
+def consultar_usuario(id):
+    conn = get_db_connection()
+    usuario = conn.execute('SELECT * FROM usuarios WHERE id = ?', (id,)).fetchone()
+    conn.close()
+
+    if usuario is None:
+        return jsonify({"erro": "Usuário não encontrado"}), 404
+
+    return jsonify({"id": usuario["id"], "nome": usuario["nome"], "email": usuario["email"]})
+
+if __name__ == '__main__':
+    app.run(debug=True)
